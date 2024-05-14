@@ -17,6 +17,8 @@ typedef struct {
     float saldo;
     float debito;
     float deposito;
+    float transferencia;
+    float taxaDesconto;
 } Cliente;
 
 // Declaração da função clearBuffer
@@ -27,6 +29,45 @@ void clearBuffer() {
     int c;
     while ((c = getchar()) != '\n' && c != EOF) {
     }
+}
+
+void carregarClientes(Cliente lista[], int *numClientes) {
+    FILE *arquivo = fopen("clientes.bin", "rb");
+    if (arquivo == NULL) {
+        printf("Erro ao abrir o arquivo de clientes.\n");
+        return;
+    }
+
+    // Lê o número de clientes do arquivo
+    fread(numClientes, sizeof(int), 1, arquivo);
+
+    // Verifica se o número de clientes lido é válido
+    if (*numClientes < 0 || *numClientes > MAX_CLIENTES) {
+        printf("Erro: número de clientes inválido.\n");
+        fclose(arquivo);
+        return;
+    }
+
+    // Lê os clientes do arquivo
+    fread(lista, sizeof(Cliente), *numClientes, arquivo);
+
+    fclose(arquivo);
+}
+
+void salvarClientes(Cliente lista[], int numClientes) {
+    FILE *arquivo = fopen("clientes.bin", "wb");
+    if (arquivo == NULL) {
+        printf("Erro ao abrir o arquivo de clientes para escrita.\n");
+        return;
+    }
+
+    // Escreve o número de clientes no arquivo
+    fwrite(&numClientes, sizeof(int), 1, arquivo);
+
+    // Escreve os clientes no arquivo
+    fwrite(lista, sizeof(Cliente), numClientes, arquivo);
+
+    fclose(arquivo);
 }
 
 void novoCliente(Cliente lista[], int *numClientes) {
@@ -112,10 +153,10 @@ void deletarCliente(Cliente lista[], int *numClientes) {
     }
 }
 
-void debitar(Cliente lista[], int numClientes) {
+float debitar(Cliente lista[], int numClientes) {
     if (numClientes == 0) {
         printf("Não há clientes para debitar.\n");
-        return; 
+        return 0.0; 
     }
 
     char cpf[TAM_CPF];
@@ -125,60 +166,83 @@ void debitar(Cliente lista[], int numClientes) {
     scanf("%14s", cpf);
     clearBuffer();
 
-    printf("Digite a senha do cliente: ");
-    scanf("%49s", senha);
-    clearBuffer();
-
     int clienteEncontrado = 0;
     for (int i = 0; i < numClientes; i++) {
-        if (strcmp(lista[i].cpf, cpf) == 0 && strcmp(lista[i].senha, senha) == 0) {
+        if (strcmp(lista[i].cpf, cpf) == 0) {
             clienteEncontrado = 1;
+            printf("Digite a senha da conta: ");
+            scanf("%49s", senha);
+            clearBuffer();
+
+            if (strcmp(lista[i].senha, senha) != 0) {
+                printf("Senha incorreta.\n");
+                return 0.0;
+            }
+
             printf("Digite o valor a ser debitado: ");
             scanf("%f", &valor);
             clearBuffer();
 
             if (valor <= 0) {
                 printf("Valor inválido para débito.\n");
-                return;
+                return 0.0;
             }
 
-            if (lista[i].saldo - valor >= -1000.0) {
-                lista[i].saldo -= valor;
-                lista[i].debito += valor; 
-                printf("Débito de %.2f realizado com sucesso.\n", valor);
-                return; 
+            float taxaDesconto;
+            if (strcmp(lista[i].tipoConta, "comum") == 0) {
+                taxaDesconto = 0.05;
+                if (lista[i].saldo - valor - (valor * taxaDesconto) >= -1000.0) {
+                    lista[i].saldo -= valor + (valor * taxaDesconto);
+                    lista[i].debito += valor; 
+                    lista[i].taxaDesconto = taxaDesconto; 
+                    printf("Débito de %.2f realizado com sucesso.\n", valor);
+                    return valor; 
+                } else {
+                    printf("Transação não autorizada. Limite de saldo excedido.\n");
+                    return 0.0;
+                }
+            } else if (strcmp(lista[i].tipoConta, "plus") == 0) {
+                taxaDesconto = 0.03;
+                if (lista[i].saldo - valor - (valor * taxaDesconto) >= -5000.0) {
+                    lista[i].saldo -= valor + (valor * taxaDesconto);
+                    lista[i].debito += valor; 
+                    lista[i].taxaDesconto = taxaDesconto; 
+                    printf("Débito de %.2f realizado com sucesso.\n", valor);
+                    return valor; 
+                } else {
+                    printf("Transação não autorizada. Limite de saldo excedido.\n");
+                    return 0.0;
+                }
             } else {
-                printf("Transação não autorizada. Limite de saldo excedido.\n");
-                return;
+                printf("Tipo de conta inválido.\n");
+                return 0.0;
             }
         }
     }
 
     if (!clienteEncontrado) {
-        printf("Cliente não encontrado ou senha incorreta.\n");
+        printf("Cliente não encontrado(o CPF pode estar incorreto).\n");
     }
+
+    return 0.0; 
 }
 
-void depositar(Cliente lista[], int numClientes) {
+
+float depositoCliente(Cliente lista[], int numClientes) {
     if (numClientes == 0) {
         printf("Não há clientes para depositar.\n");
-        return; 
+        return 0.0; 
     }
 
     char cpf[TAM_CPF];
-    char senha[TAM_SENHA];
     float valor;
     printf("Digite o CPF do cliente: ");
     scanf("%14s", cpf);
     clearBuffer();
 
-    printf("Digite a senha do cliente: ");
-    scanf("%49s", senha);
-    clearBuffer();
-
     int clienteEncontrado = 0;
     for (int i = 0; i < numClientes; i++) {
-        if (strcmp(lista[i].cpf, cpf) == 0 && strcmp(lista[i].senha, senha) == 0) {
+        if (strcmp(lista[i].cpf, cpf) == 0) {
             clienteEncontrado = 1;
             printf("Digite o valor a ser depositado: ");
             scanf("%f", &valor);
@@ -186,19 +250,21 @@ void depositar(Cliente lista[], int numClientes) {
 
             if (valor <= 0) {
                 printf("Valor inválido para depósito.\n");
-                return; 
+                return 0.0; 
             }
 
             lista[i].saldo += valor;
             lista[i].deposito += valor; 
             printf("Depósito de %.2f realizado com sucesso.\n", valor);
-            return; 
+            return valor; 
         }
     }
 
     if (!clienteEncontrado) {
-        printf("Cliente não encontrado ou senha incorreta.\n");
+        printf("Cliente não encontrado.\n");
     }
+
+    return 0.0; 
 }
 
 void extrato(Cliente lista[], int numClientes) {
@@ -224,10 +290,12 @@ void extrato(Cliente lista[], int numClientes) {
 
             fprintf(arquivo, "Extrato para o cliente %s:\n", lista[i].cpf);
             fprintf(arquivo, "Nome: %s\n", lista[i].nome);
-            fprintf(arquivo, "Sobrenome: %s\n", lista[i].sobrenome);
-            fprintf(arquivo, "Tipo de conta: %s\n", lista[i].tipoConta);
-            fprintf(arquivo, "Débito: %.2f\n", lista[i].debito);
-            fprintf(arquivo, "Depósito: %.2f\n", lista[i].deposito);
+            fprintf(arquivo, "Sobrenome: %s \n", lista[i].sobrenome);
+            fprintf(arquivo, "Tipo de conta: %s\n", lista[i].tipoConta);  
+            fprintf(arquivo, "Débitos que foram realizados: %.2f\n", lista[i].debito);
+            fprintf(arquivo, "Depósitos que foram realizados: %.2f\n", lista[i].deposito);
+            fprintf(arquivo, "Transferências que foram realizadas: %.2f\n", lista[i].transferencia);
+            fprintf(arquivo, "Taxa: %.2f\n", lista[i].taxaDesconto);
             fprintf(arquivo, "Saldo atual: %.2f\n", lista[i].saldo);
 
             fclose(arquivo);
@@ -237,26 +305,26 @@ void extrato(Cliente lista[], int numClientes) {
     }
 
     if (!clienteEncontrado) {
-        printf("Cliente não encontrado ou senha incorreta.\n");
+        printf("CPF ou senha incorretos. Não é possível fazer o extrato.\n");
     }
 }
 
 void transferencia(Cliente lista[], int numClientes) {
     char cpfOrigem[TAM_CPF];
     char cpfDestino[TAM_CPF];
-    char senha[TAM_SENHA];
+    char senhaOrigem[TAM_SENHA];
     float valor;
 
     printf("Digite o CPF do cliente de origem: ");
     scanf("%14s", cpfOrigem);
     clearBuffer();
 
-    printf("Digite o CPF do cliente de destino: ");
-    scanf("%14s", cpfDestino);
+    printf("Digite a senha da conta de origem: ");
+    scanf("%49s", senhaOrigem);
     clearBuffer();
 
-    printf("Digite a senha do cliente de origem: ");
-    scanf("%49s", senha);
+    printf("Digite o CPF do cliente de destino: ");
+    scanf("%14s", cpfDestino);
     clearBuffer();
 
     int clienteOrigemEncontrado = 0;
@@ -264,9 +332,9 @@ void transferencia(Cliente lista[], int numClientes) {
     int indexClienteOrigem = -1;
     int indexClienteDestino = -1;
 
-    // Verifica se o cliente de origem existe
+    // Verifica se o cliente de origem existe e se a senha está correta
     for (int i = 0; i < numClientes; i++) {
-        if (strcmp(lista[i].cpf, cpfOrigem) == 0 && strcmp(lista[i].senha, senha) == 0) {
+        if (strcmp(lista[i].cpf, cpfOrigem) == 0 && strcmp(lista[i].senha, senhaOrigem) == 0) {
             clienteOrigemEncontrado = 1;
             indexClienteOrigem = i;
             break;
@@ -283,7 +351,7 @@ void transferencia(Cliente lista[], int numClientes) {
     }
 
     if (!clienteOrigemEncontrado) {
-        printf("Cliente de origem não encontrado ou senha incorreta.\n");
+        printf("CPF ou senha incorretos para o cliente de origem.\n");
         return;
     }
 
@@ -305,16 +373,21 @@ void transferencia(Cliente lista[], int numClientes) {
 
     // Realiza a transferência
     lista[indexClienteOrigem].saldo -= valor;
+    lista[indexClienteOrigem].transferencia -= valor;
     lista[indexClienteDestino].saldo += valor;
+    lista[indexClienteDestino].transferencia += valor;
 
     printf("Transferência de %.2f realizada com sucesso de %s para %s.\n", valor,
-           lista[indexClienteOrigem].cpf, lista[indexClienteDestino].cpf);
+            lista[indexClienteOrigem].cpf, lista[indexClienteDestino].cpf);
 }
 
 int main() {
     Cliente listaclientes[MAX_CLIENTES];
     int numClientes = 0;
     char opcao;
+
+    // Carrega os clientes do arquivo binário
+    carregarClientes(listaclientes, &numClientes);
 
     do {
         printf("\nMenu Principal:\n");
@@ -323,8 +396,8 @@ int main() {
         printf("3- Listar Clientes\n");
         printf("4- Débito\n");
         printf("5- Depósito\n");
-        printf("6- Extrato\n");
-        printf("7- Transferência entre contas\n");
+        printf("6- Transferência entre contas\n");
+        printf("7- Extrato\n");
         printf("0- Sair\n");
         printf("Escolha uma opção: ");
         scanf(" %c", &opcao);
@@ -347,15 +420,15 @@ int main() {
                 break;
 
             case '5':
-                depositar(listaclientes, numClientes);
+                depositoCliente(listaclientes, numClientes);
                 break;
 
             case '6':
-                extrato(listaclientes, numClientes);
+                transferencia(listaclientes, numClientes);
                 break;
 
             case '7':
-                transferencia(listaclientes, numClientes);
+                extrato(listaclientes, numClientes);
                 break;
 
             case '0':
@@ -369,7 +442,8 @@ int main() {
 
     } while (opcao != '0');
 
+    // Salva os clientes de volta no arquivo binário antes de sair
+    salvarClientes(listaclientes, numClientes);
+
     return 0;
 }
-
-
