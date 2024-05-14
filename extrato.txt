@@ -1,7 +1,9 @@
-Extrato para o cliente 654321:
+Extrato para o cliente 54321:
 Nome: a
-Sobrenome: d
-Tipo de conta: comum
-Débito: 200.00
-Depósito: 600.00
-Saldo atual: 1400.00
+Sobrenome: s 
+Tipo de conta: plus
+Débitos que foram realizados: 100.00
+Depósitos que foram realizados: 500.00
+Transferências que foram realizadas: 0.00
+Taxa: 0.03
+Saldo atual: 597.00
