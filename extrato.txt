@@ -1,0 +1,7 @@
+Extrato para o cliente 654321:
+Nome: a
+Sobrenome: d
+Tipo de conta: comum
+Débito: 200.00
+Depósito: 600.00
+Saldo atual: 1400.00
